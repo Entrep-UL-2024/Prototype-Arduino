@@ -3,12 +3,31 @@
 #include "MAX30105.h"
 #include <ArduinoBLE.h>
 
+// Assuming you're using a 5A ACS712. Adjust the sensitivity accordingly for other models.
+const float ACS712_SENSITIVITY = 0.185; // Sensitivity in V/A (for 5A module)
+const int ACS712_ZERO = 512; // Change this based on your calibration
+
 BLEService particleService("19B10010-E8F2-537E-4F6C-D104768A1214"); // Create a BLE service
 
 BLEUnsignedCharCharacteristic irCharacteristic("19B10011-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify); // IR Characteristic
 BLEUnsignedCharCharacteristic redCharacteristic("19B10012-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify); // Red Characteristic
 
+// Define BLE Characteristic for Current
+BLEUnsignedIntCharacteristic currentCharacteristic("19B10013-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);
+
 MAX30105 particleSensor; // initialize MAX30102 with I2C
+
+uint8_t readCurrent(){
+  int analogValue = analogRead(A0);
+  // Convert to voltage (assuming 5V reference and 10-bit ADC)
+  float voltage = (analogValue / 1023.0) * 5.0;
+  // Convert voltage to current
+  float current = (voltage - 2.5) / ACS712_SENSITIVITY; // Offset by 2.5V for ACS712
+  // Convert current to an integer for BLE transmission
+  // This will send the current in milliamps
+  uint8_t currentForBLE = abs(current * 1000);
+  return currentForBLE;
+}
 
 void setup()
 {
@@ -42,6 +61,7 @@ void setup()
   BLE.setAdvertisedService(particleService);
   particleService.addCharacteristic(irCharacteristic);
   particleService.addCharacteristic(redCharacteristic);
+  particleService.addCharacteristic(currentCharacteristic);
   BLE.addService(particleService);
   BLE.advertise();
 
@@ -62,6 +82,7 @@ void loop() {
         // Read IR and Red data
         uint8_t irValue = particleSensor.getFIFOIR();
         uint8_t redValue = particleSensor.getFIFORed();
+        uint8_t currentValue = readCurrent();
 
         // read microseconds
         Serial.print("micros ");
@@ -73,9 +94,13 @@ void loop() {
         Serial.print(">Red:");
         Serial.println(redValue);
 
+        Serial.print(">Current:");
+        Serial.println(currentValue);
+
         // Update BLE characteristics
         irCharacteristic.writeValue(irValue);
         redCharacteristic.writeValue(redValue);
+        currentCharacteristic.writeValue(currentValue);
 
         delay(10); // Add a small delay to avoid overloading BLE
 
