@@ -7,6 +7,8 @@
 const float ACS712_SENSITIVITY = 0.185; // Sensitivity in V/A (for 5A module)
 const int ACS712_ZERO = 512; // Change this based on your calibration
 
+const char* ble_name = "ParticleSensor";
+
 BLEService particleService("19B10010-E8F2-537E-4F6C-D104768A1214"); // Create a BLE service
 
 BLEUnsignedCharCharacteristic irCharacteristic("19B10011-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify); // IR Characteristic
@@ -33,6 +35,8 @@ void setup()
 {
   Serial.begin(115200);
   // while(!Serial) delay(50); //We must wait for Teensy to come online
+  delay(1000);
+
   delay(500);
   Serial.println("");
   Serial.println("MAX30102");
@@ -57,7 +61,7 @@ void setup()
 
   // BLE setup
   BLE.begin();
-  BLE.setLocalName("ParticleSensor");
+  BLE.setLocalName(ble_name);
   BLE.setAdvertisedService(particleService);
   particleService.addCharacteristic(irCharacteristic);
   particleService.addCharacteristic(redCharacteristic);
@@ -65,7 +69,12 @@ void setup()
   BLE.addService(particleService);
   BLE.advertise();
 
-  Serial.println("BLE Peripheral - ParticleSensor is now advertising.");
+  // Print the local BLE address
+  Serial.print("Local BLE Address: ");
+  Serial.print(BLE.address());
+  Serial.print(" | BLE Peripheral - ");
+  Serial.print(ble_name);
+  Serial.println(" is now advertising.");
 }
 
 void loop() {
@@ -85,17 +94,17 @@ void loop() {
         uint8_t currentValue = readCurrent();
 
         // read microseconds
-        Serial.print("micros ");
-        Serial.println(micros());
-        // read stored IR
-        Serial.print(">IR:");
-        Serial.print(irValue);
-        // read stored red
-        Serial.print(">Red:");
-        Serial.println(redValue);
+        // Serial.print("micros ");
+        // Serial.println(micros());
+        // // read stored IR
+        // Serial.print(">IR:");
+        // Serial.print(irValue);
+        // // read stored red
+        // Serial.print(">Red:");
+        // Serial.println(redValue);
 
-        Serial.print(">Current:");
-        Serial.println(currentValue);
+        // Serial.print(">Current:");
+        // Serial.println(currentValue);
 
         // Update BLE characteristics
         irCharacteristic.writeValue(irValue);
