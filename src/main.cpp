@@ -32,7 +32,7 @@ uint8_t readCurrent(){
 void setup()
 {
   Serial.begin(115200);
-  while(!Serial) delay(50); //We must wait for Teensy to come online
+  // while(!Serial) delay(50); //We must wait for Teensy to come online
   delay(500);
   Serial.println("");
   Serial.println("MAX30102");
