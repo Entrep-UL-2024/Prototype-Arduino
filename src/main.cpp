@@ -19,15 +19,32 @@ BLEUnsignedIntCharacteristic currentCharacteristic("19B10013-E8F2-537E-4F6C-D104
 
 MAX30105 particleSensor; // initialize MAX30102 with I2C
 
+float sumCurrent = 0.0;
+int numReadings = 0;
+const int BUFFER_SIZE = 100;
+float currentBuffer[BUFFER_SIZE];
+int bufferIndex = 0;
+
 uint8_t readCurrent(){
   int analogValue = analogRead(A0);
   // Convert to voltage (assuming 5V reference and 10-bit ADC)
   float voltage = (analogValue / 1023.0) * 5.0;
   // Convert voltage to current
   float current = (voltage - 2.5) / ACS712_SENSITIVITY; // Offset by 2.5V for ACS712
+
+  // Update circular buffer
+  sumCurrent -= currentBuffer[bufferIndex];
+  sumCurrent += current;
+  currentBuffer[bufferIndex] = current;
+  bufferIndex = (bufferIndex + 1) % BUFFER_SIZE;
+  
+  // Calculate mean current
+  float meanCurrent = sumCurrent / BUFFER_SIZE;
+
   // Convert current to an integer for BLE transmission
   // This will send the current in milliamps
-  uint8_t currentForBLE = abs(current * 1000);
+  uint8_t currentForBLE = abs(meanCurrent * 1000);
+  
   return currentForBLE;
 }
 
@@ -35,9 +52,7 @@ void setup()
 {
   Serial.begin(115200);
   // while(!Serial) delay(50); //We must wait for Teensy to come online
-  delay(1000);
-
-  delay(500);
+  delay(2500); //wait for serial
   Serial.println("");
   Serial.println("MAX30102");
   delay(500);
@@ -50,12 +65,12 @@ void setup()
   }
   Serial.println("MAX30105 found.");
 
-  byte ledBrightness = 70; //Options: 0=Off to 255=50mA
-  byte sampleAverage = 1; //Options: 1, 2, 4, 8, 16, 32
+  byte ledBrightness = 60; //Options: 0=Off to 255=50mA
+  byte sampleAverage = 4; //Options: 1, 2, 4, 8, 16, 32
   byte ledMode = 2; //Options: 1 = Red only, 2 = Red + IR, 3 = Red + IR + Green
-  int sampleRate = 400; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
-  int pulseWidth = 69; //Options: 69, 118, 215, 411
-  int adcRange = 16384; //Options: 2048, 4096, 8192, 16384
+  byte sampleRate = 100; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
+  int pulseWidth = 411; //Options: 69, 118, 215, 411
+  int adcRange = 4096; //Options: 2048, 4096, 8192, 16384
 
   particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
 
@@ -91,25 +106,33 @@ void loop() {
         // Read IR and Red data
         uint8_t irValue = particleSensor.getFIFOIR();
         uint8_t redValue = particleSensor.getFIFORed();
+        uint8_t greenValue = particleSensor.getFIFOGreen();
+        particleSensor.getRed();
+        
         uint8_t currentValue = readCurrent();
 
-        // read microseconds
+
+         // read microseconds
         // Serial.print("micros ");
         // Serial.println(micros());
-        // // read stored IR
-        // Serial.print(">IR:");
-        // Serial.print(irValue);
-        // // read stored red
-        // Serial.print(">Red:");
-        // Serial.println(redValue);
+        // read stored IR
+        Serial.print(">IRValue:");
+        Serial.println(irValue);
+        // read stored red
+        Serial.print(">RedValue:");
+        Serial.println(redValue);
+        // read current
+        Serial.print(">Current:");
+        Serial.println(currentValue);
 
-        // Serial.print(">Current:");
-        // Serial.println(currentValue);
+        uint8_t sinusValue = (uint8_t) (128 + 127 * sin(micros() / 1000000.0 * 2 * PI * 0.5));
+        Serial.print(">Sinus:");
+        Serial.println(sinusValue);
 
         // Update BLE characteristics
-        irCharacteristic.writeValue(irValue);
-        redCharacteristic.writeValue(redValue);
-        currentCharacteristic.writeValue(currentValue);
+        // irCharacteristic.writeValue(sinusValue);
+        // redCharacteristic.writeValue(redValue);
+        // currentCharacteristic.writeValue(currentValue);
 
         delay(10); // Add a small delay to avoid overloading BLE
 
