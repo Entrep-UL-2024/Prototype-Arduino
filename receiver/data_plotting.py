@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 MAX_DATA_POINTS = 100  # Maximum number of data points to display
-INTERVAL = 50  # Time (ms) between polling/plotting
+INTERVAL = 10  # Time (ms) between polling/plotting
 
 def plot_data(i, pipe_conn, ir_data, red_data, current_data):
     if pipe_conn.poll():  # Check if there's data to receive
@@ -23,23 +23,37 @@ def plot_data(i, pipe_conn, ir_data, red_data, current_data):
         print(f"Red: {red_data}")
         print(f"Current: {current_data}")
 
+    
     plt.clf()  # Clear the entire figure
+    
+
     plt.subplot(311)  # 3 rows, 1 column, subplot 1
     plt.plot(ir_data, label='IR')
     plt.legend(loc='upper left')
     plt.ylabel('IR Value')
-    plt.title('Data Plot')
+    plt.title('IR Plot')
+    if ir_data:
+        plt.annotate(f'{ir_data[-1]}', xy=(len(ir_data)-1, ir_data[-1]), xytext=(3,3), textcoords="offset points")
 
     plt.subplot(312)  # 3 rows, 1 column, subplot 2
     plt.plot(red_data, label='Red')
     plt.legend(loc='upper left')
     plt.ylabel('Red Value')
+    plt.title('Red Plot')
+    if red_data:
+        plt.annotate(f'{red_data[-1]}', xy=(len(red_data)-1, red_data[-1]), xytext=(3,3), textcoords="offset points")
 
     plt.subplot(313)  # 3 rows, 1 column, subplot 3
     plt.plot(current_data, label='Current')
     plt.legend(loc='upper left')
     plt.xlabel('Time (ms)')
     plt.ylabel('Current Value')
+    plt.title('Current Plot')
+    if current_data:
+        plt.annotate(f'{current_data[-1]}', xy=(len(current_data)-1, current_data[-1]), xytext=(3,3), textcoords="offset points")
+
+    
+    plt.tight_layout()  # Ensure tight layout so it doesn't overlap
 
 def data_plotting_process(pipe_conn):
     ir_data, red_data, current_data = [], [], []

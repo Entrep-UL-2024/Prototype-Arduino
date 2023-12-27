@@ -1,4 +1,7 @@
 # To-Do List
 
-- [ ] Task 1: Complete project report
-- [ ] Task 2: Attend team meeting at 10 AM
+- [ ] Assuer la vitesse de transfer du pipe de processus
+- [ ] Diminuer la vitesse de transfers du bloothoot et faire une moyenne en premier
+- [ ] Tester si les valeurs de courrants sont bonnes
+- [ ] Get les valleur de spo2 et de Heart beat directement sur le mcu
+- [ ] Verifiers le temps rééel 
