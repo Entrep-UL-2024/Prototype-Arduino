@@ -59,18 +59,19 @@ async def connect_and_listen_to_arduino(pipe_conn):
     try:
         if(not get_client()):
             return
-        await asyncio.wait_for(client.connect(), timeout=15)
+        if client is not None and not client.is_connected:
+            await asyncio.wait_for(client.connect(), timeout=15)
         logger.info("Connected to Arduino")
 
         await setup_notifications(client, lambda s, d: data_callback(s, d, pipe_conn))
 
-        while client.is_connected:
-            await asyncio.sleep(1)
+        while client is not None and client.is_connected:
+            await asyncio.sleep(3)
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
     finally:
-        if client.is_connected:
+        if client is not None and client.is_connected:
             await client.disconnect()
         logger.info("Client disconnected. Will attempt to reconnect...")
 
@@ -80,7 +81,7 @@ async def main(pipe_conn):
             await connect_and_listen_to_arduino(pipe_conn)
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt detected. Exiting...")
-        if client.is_connected:
+        if client is not None and client.is_connected:
             await client.disconnect()
         logger.info("Cleanup complete. Goodbye!")
         pipe_conn.close()
