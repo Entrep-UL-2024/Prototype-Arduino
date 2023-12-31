@@ -3,62 +3,87 @@
 import asyncio
 from bleak import BleakClient, BleakScanner, BleakGATTCharacteristic
 import time
+import logging
+import backoff
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # BLE address and UUIDs
 target_device_name = "ParticleSensor"
-ir_uuid = "19B10011-E8F2-537E-4F6C-D104768A1214"
-red_uuid = "19B10012-E8F2-537E-4F6C-D104768A1214"
+hr_uuid = "19B10011-E8F2-537E-4F6C-D104768A1214"
+spo2_uuid = "19B10012-E8F2-537E-4F6C-D104768A1214"
 current_uuid = "19B10013-E8F2-537E-4F6C-D104768A1214"
 
 async def get_device_address(target_name):
     devices = await BleakScanner.discover()
     for device in devices:
         if device.name == target_name:
-            print(f"Found device with name {target_name} and address {device.address}")
+            logger.info(f"Found device with name {target_name} and address {device.address}")
             return device.address
     return None
 
-async def connect_and_listen_to_arduino(pipe_conn):
+client = None
+async def get_client():
     arduino_ble_address = await get_device_address(target_device_name)
     if arduino_ble_address is None:
-        print(f"No device with name {target_device_name} found.")
-        return
-    
+        logger.warning(f"No device with name {target_device_name} found.")
+        return False
     client = BleakClient(arduino_ble_address)
+    logger.info(f"Attempting to connect to Arduino {arduino_ble_address}...")
+    return True
+
+async def setup_notifications(client, callback):
+    await client.start_notify(hr_uuid, callback)
+    await client.start_notify(spo2_uuid, callback)
+    await client.start_notify(current_uuid, callback)
+
+def data_callback(sender: BleakGATTCharacteristic, data: bytearray, pipe_conn):
+    hr_value = None
+    spo2_value = None
+    current_value = None
+    if sender.uuid.lower() == hr_uuid.lower():
+        hr_value = int.from_bytes(data, byteorder='little')
+    elif sender.uuid.lower() == spo2_uuid.lower():
+        spo2_value = int.from_bytes(data, byteorder='little')
+    elif sender.uuid.lower() == current_uuid.lower():
+        current_value = int.from_bytes(data, byteorder='little')
+
+    if hr_value is not None or spo2_value is not None or current_value is not None:
+        logger.info(f"Sending IR: {hr_value}, Red: {spo2_value}, Current: {current_value}")
+        pipe_conn.send((hr_value, spo2_value, current_value))
+
+@backoff.on_exception(backoff.expo, Exception, max_time=300)
+async def connect_and_listen_to_arduino(pipe_conn):
     try:
-        print(f"Attempting to connect to Arduino {arduino_ble_address}...")
-        await asyncio.wait_for(client.connect(), timeout=10)
-        print("Connected to Arduino")
-        
-        def callback(sender: BleakGATTCharacteristic, data: bytearray):
-            ir_value = None
-            red_value = None
-            current_value = None
-            if sender.uuid.lower() == ir_uuid.lower():
-                ir_value = int.from_bytes(data, byteorder='little')
-            elif sender.uuid.lower() == red_uuid.lower():
-                red_value = int.from_bytes(data, byteorder='little')
-            elif sender.uuid.lower() == current_uuid.lower():
-                current_value = int.from_bytes(data, byteorder='little')
+        if(not get_client()):
+            return
+        await asyncio.wait_for(client.connect(), timeout=15)
+        logger.info("Connected to Arduino")
 
-            # Check if all values are available before sending them through the pipe
-            if ir_value is not None or red_value is not None or current_value is not None:
-                print(f"Sending IR: {ir_value}, Red: {red_value}, Current: {current_value}")
-                pipe_conn.send((ir_value, red_value, current_value))
+        await setup_notifications(client, lambda s, d: data_callback(s, d, pipe_conn))
 
-        await client.start_notify(ir_uuid, callback)
-        await client.start_notify(red_uuid, callback)
-        await client.start_notify(current_uuid, callback)
+        while client.is_connected:
+            await asyncio.sleep(1)
 
-        # Collect data for a certain period
-        await asyncio.sleep(60)  # 60 seconds
-    except asyncio.TimeoutError:
-        print("Connection attempt timed out.")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
     finally:
-        await client.disconnect()
-        print("Client disconnected.")
+        if client.is_connected:
+            await client.disconnect()
+        logger.info("Client disconnected. Will attempt to reconnect...")
+
+async def main(pipe_conn):
+    try:
+        while True:
+            await connect_and_listen_to_arduino(pipe_conn)
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt detected. Exiting...")
+        if client.is_connected:
+            await client.disconnect()
+        logger.info("Cleanup complete. Goodbye!")
+        pipe_conn.close()
 
 def data_collection_process(pipe_conn):
-    asyncio.run(connect_and_listen_to_arduino(pipe_conn))
+    asyncio.run(main(pipe_conn))
