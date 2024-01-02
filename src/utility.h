@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #define PRINTS
-// #define USE_BLE
+#define USE_BLE
 
 #ifdef PRINTS
 #define Print(msg) Serial.print(msg)

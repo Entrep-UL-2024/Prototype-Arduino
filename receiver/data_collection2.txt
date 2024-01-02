@@ -70,7 +70,8 @@ async def connect_and_listen_to_arduino(pipe_conn):
         if(client is None):
             logger.info("No client got 1 ...")
             return
-        await asyncio.wait_for(client.connect(), timeout=15)
+        if not client.is_connected:
+            await asyncio.wait_for(client.connect(), timeout=15)
         logger.info("Connected to Arduino")
 
         await setup_notifications(client, lambda s, d: data_callback(s, d, pipe_conn))
@@ -85,25 +86,6 @@ async def connect_and_listen_to_arduino(pipe_conn):
             await client.disconnect()
         logger.info("Client disconnected. Will attempt to reconnect...")
 
-async def connect_to_device(target_name):
-    address = await get_device_address(target_name)
-    if address is None:
-        logger.warning(f"No device with name {target_name} found.")
-        return False
-
-    client = BleakClient(address)
-    try:
-        await client.connect()
-        logger.info(f"Connected to {target_name} at address {address}")
-        return True
-    except Exception as e:
-        logger.error(f"An error occurred while connecting: {e}")
-        return False
-    finally:
-        if client.is_connected:
-            await client.disconnect()
-            logger.info("Disconnected from the device")
-
 async def main(pipe_conn):
     global client
     try:
@@ -116,12 +98,6 @@ async def main(pipe_conn):
             await client.disconnect()
         logger.info("Cleanup complete. Goodbye!")
         pipe_conn.close()
-
-    # success = await connect_to_device(target_device_name)
-    # if success:
-    #     logger.info("Device connection was successful")
-    # else:
-    #     logger.info("Device connection failed")
 
 def data_collection_process(pipe_conn):
     asyncio.run(main(pipe_conn))
