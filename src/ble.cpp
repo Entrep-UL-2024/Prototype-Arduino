@@ -31,7 +31,7 @@ BLEDevice central;
 bool connectBle(){
     #ifdef USE_BLE
     central = BLE.central();
-    bool isCentralConnected = central && central.connected();
+    bool isCentralConnected = central;
     #else
     bool isCentralConnected = true;
     #endif
@@ -40,7 +40,7 @@ bool connectBle(){
 
 bool isBleConnected(){
   #ifdef USE_BLE
-  return central && central.connected();
+  return central.connected();
   #else
   return true;
   #endif
